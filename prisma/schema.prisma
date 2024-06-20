@@ -1,0 +1,78 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Usuario {
+  id               Int       @id @default(autoincrement())
+  username         String    @unique
+  email            String    @unique
+  password         String
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  Jugador          Jugador?
+}
+
+model Jugador {
+  id                Int             @id @default(autoincrement())
+  usuarioId         Int             @unique
+  nombre            String
+  apellido          String
+  edad              Int
+  rango             String
+  rol               String
+  rolSecundario     String?
+  biografia         String?
+  disponibilidad    String?
+  perfilTracker     String?
+  nacionalidad      String?
+  idioma            String?
+  idiomaSecundario  String?
+  twitter           String?
+  twitch            String?
+  kickStream        String?
+  youtube           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  Usuario           Usuario         @relation(fields: [usuarioId], references: [id])
+  JugadoresEquipos  JugadoresEquipos[]
+  Ofertas           Oferta[]
+}
+
+model Equipo {
+  id                Int             @id @default(autoincrement())
+  nombre            String          @unique
+  descripcion       String?
+  fundadoEn         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  JugadoresEquipos  JugadoresEquipos[]
+  Ofertas           Oferta[]
+}
+
+model JugadoresEquipos {
+  id                Int       @id @default(autoincrement())
+  jugadorId         Int
+  equipoId          Int
+  fechaUnion        DateTime
+  rol               String?
+  Jugador           Jugador   @relation(fields: [jugadorId], references: [id])
+  Equipo            Equipo    @relation(fields: [equipoId], references: [id])
+  @@unique([jugadorId, equipoId])
+}
+
+model Oferta {
+  id                Int       @id @default(autoincrement())
+  equipoId          Int
+  jugadorId         Int
+  mensaje           String
+  estado            String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  Equipo            Equipo    @relation(fields: [equipoId], references: [id])
+  Jugador           Jugador   @relation(fields: [jugadorId], references: [id])
+}
