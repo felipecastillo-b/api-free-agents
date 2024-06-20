@@ -42,8 +42,12 @@ app.post('/register', async (req: Request, res: Response) => {
 
 // Login de usuario
 app.post('/login', async (req: Request, res: Response) => {
-    const { email, password } = req.body;
-    const usuario = await prisma.usuario.findUnique({ where: { email } });
+    const { username, password } = req.body;
+    const usuario = await prisma.usuario.findUnique({
+        where: {
+            username: username
+        }
+    });
 
     if (!usuario) {
         return res.status(401).json({ error: 'Credenciales incorrectas' });
@@ -82,6 +86,22 @@ app.get('/profile', authenticate, async (req: AuthenticatedRequest, res: Respons
     const userId = parseInt(req.userId, 10); // Convierte userId a  un numero
     const usuario = await prisma.usuario.findUnique({ where: { id: userId } });
     res.json(usuario);
+});
+
+// Dashboard de usuario
+app.get('/dashboard', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const userId = req.userId;
+        if (!userId) {
+            return res.status(401).json({ error: 'User ID not found' });
+        }
+        const userIdAsNumber = parseInt(userId, 10);
+        const usuario = await prisma.usuario.findUnique({ where: { id: userIdAsNumber } });
+        res.json(usuario);
+    } catch (error) {
+        console.error('Error al obtener usuario:', error);
+        res.status(500).json({ error: 'Error al obtener usuario' });
+    }
 });
 
 // Start server
