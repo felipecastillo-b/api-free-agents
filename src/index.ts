@@ -104,6 +104,110 @@ app.get('/dashboard', authenticate, async (req: AuthenticatedRequest, res: Respo
     }
 });
 
+// Endpoint para verificar si el usuario esta registrado como Jugador
+app.get('/esJugador', authenticate, async(req: AuthenticatedRequest, res: Response) =>{
+    try {
+        if(!req.userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
+        }
+        const jugador = await prisma.jugador.findUnique({
+            where: { usuarioId: parseInt(req.userId, 10) },
+        });
+        res.json({ esJugador: !!jugador }) // Se devuelve TRUE si existe el jugador, caso contrario FALSE
+    } catch (error) {
+        console.log('Error al verificar el jugador:', error);
+        res.status(500).json({ error: 'Error al verificar jugador' });
+    }
+});
+
+// Endpoint para registrar un Usuario como Jugador
+app.post('/registrarJugador', authenticate, async(req: AuthenticatedRequest, res: Response) => {
+    const {
+        nombre,
+        apellido,
+        edad,
+        rango,
+        rol,
+        rolSecundario,
+        biografia,
+        disponibilidad,
+        perfilTracker,
+        nacionalidad,
+        idioma,
+        idiomaSecundario,
+        twitter,
+        twitch,
+        kickStream,
+        youtube,
+    } = req.body;
+
+    try {
+        if (!req.userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
+        }
+
+        // Verifica si ya existe un Jugador para este Usuario
+        const existingJugador = await prisma.jugador.findUnique({
+            where: { usuarioId: parseInt(req.userId, 10) },
+        });
+
+        if (existingJugador) {
+            return res.status(400).json({ error: 'El Usuario ya esta registrado como Jugador' });
+        }
+
+        // Registra al Usuario como Jugador
+        const jugador = await prisma.jugador.create({
+            data: {
+                usuarioId: parseInt(req.userId, 10),
+                nombre,
+                apellido,
+                edad,
+                rango,
+                rol,
+                rolSecundario,
+                biografia,
+                disponibilidad,
+                perfilTracker,
+                nacionalidad,
+                idioma,
+                idiomaSecundario,
+                twitter,
+                twitch,
+                kickStream,
+                youtube,
+            },
+        });        
+        res.status(201).json({ message: 'Jugador registrado exitosamente:', jugador });
+
+    } catch (error) {
+        console.log('Error al registrar jugador:', error);
+        res.status(500).json({ error: ' Error al registrar jugador' });
+    }
+});
+
+// Endpoint para obtener el perfil del jugador
+app.get('/perfilJugador', authenticate, async(req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            return res.status(401).json({ error: 'Usuario no autenticado' });
+        }
+
+        const jugador = await prisma.jugador.findUnique({
+            where: { usuarioId: parseInt(req.userId, 10) },
+            include: { Usuario: true }, // Para incluir los datos del Usuario
+        });
+
+        if (!jugador) {
+            return res.status(404).json({ error: 'Jugador no encontrado' });
+        }
+        res.json(jugador);
+
+    } catch (error) {
+        console.log('Error al obtener el perfil del jugador:', error);
+        res.status(500).json({ error: 'Error al obtener el perfil del jugador' });
+    }
+});
+
 // Start server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
