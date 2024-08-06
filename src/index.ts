@@ -74,7 +74,13 @@ const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFuncti
         req.userId = decoded.userId;
         next();
     } catch (error) {
-        res.status(401).json({ error: 'Token inválido' });
+        if (error instanceof jwt.TokenExpiredError) {
+            return res.status(401).json({ error: 'Token expirado' });
+        }
+        if (error instanceof jwt.JsonWebTokenError) {
+            return res.status(401).json({ error: 'Token invalido' });
+        }
+        res.status(401).json({ error: 'No autorizado' });
     }
 };
 
