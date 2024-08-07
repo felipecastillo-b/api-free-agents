@@ -214,6 +214,75 @@ app.get('/perfilJugador', authenticate, async(req: AuthenticatedRequest, res: Re
     }
 });
 
+// Endpoint para actualizar datos del pefil del jugador
+app.put("/actualizarPerfilJugador", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const userId = req.userId;
+        if (!userId) {
+            return res.status(401).json({ error: "Usuario no autenticado" });
+        }
+        const userIdAsNumber = parseInt(userId, 10);
+
+        const {
+            nombre,
+            apellido,
+            edad,
+            rango,
+            rol,
+            rolSecundario,
+            biografia,
+            disponibilidad,
+            perfilTracker,
+            nacionalidad,
+            idioma,
+            idiomaSecundario,
+            twitter,
+            twitch,
+            kickStream,
+            youtube,
+        } = req.body;
+
+        // asegurar que edad es un INT y no un string
+        const edadAsNumber = parseInt(edad, 10);
+
+        const existingJugador = await prisma.jugador.findUnique({
+            where: { usuarioId: userIdAsNumber },
+        });
+
+        if (!existingJugador) {
+            return res.status(404).json({ error: "Peril de jugador no encontrado" });
+        }
+
+        const updateJugador = await prisma.jugador.update({
+            where: { usuarioId: userIdAsNumber },
+            data: {
+                nombre,
+                apellido,
+                edad: edadAsNumber,
+                rango,
+                rol,
+                rolSecundario,
+                biografia,
+                disponibilidad,
+                perfilTracker,
+                nacionalidad,
+                idioma,
+                idiomaSecundario,
+                twitter,
+                twitch,
+                kickStream,
+                youtube,
+                updatedAt: new Date(),
+            },
+        });
+
+        res.json(updateJugador);
+    } catch (error) {
+        console.log("Error al actualizar el perfil del jugador", error);
+        res.status(500).json({ error: "Error al actualizar el perfil del jugador" });
+    }
+});
+
 // Start server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
