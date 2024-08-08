@@ -283,6 +283,59 @@ app.put("/actualizarPerfilJugador", authenticate, async (req: AuthenticatedReque
     }
 });
 
+// Endpoint para encontrar jugador
+app.get("/jugador/:username", authenticate, async (req, res) => {
+    try {
+        const { username } = req.params;
+
+        if (!username) {
+            return res.status(400).json({ error: "El usuario es requerido" });
+        }
+
+        // busca el usuario por username
+        const usuario = await prisma.usuario.findUnique({
+            where: { username },
+            include: {
+                Jugador: true, // incluye los datos de la tabla Jugador
+            },
+        });
+
+        if (!usuario) {
+            return res.status(404).json({ error: "Usuario no encontrado" });
+        }
+
+        if (!usuario.Jugador) {
+            return res.status(200).json({ error: "El perfil del jugador no existe aun", jugador: null });
+        }
+
+        // extrae los datos del perfil jugador
+        const jugador = usuario.Jugador;
+
+        res.json({
+            username: usuario.username,
+            nombre: jugador.nombre,
+            apellido: jugador.apellido,
+            edad: jugador.edad,
+            rango: jugador.rango,
+            rol: jugador.rol,
+            rolSecundario: jugador.rolSecundario,
+            biografia: jugador.biografia,
+            disponibilidad: jugador.disponibilidad,
+            perfilTracker: jugador.perfilTracker,
+            nacionalidad: jugador.nacionalidad,
+            idioma: jugador.idioma,
+            idiomaSecundario: jugador.idiomaSecundario,
+            twitter: jugador.twitter,
+            twitch: jugador.twitch,
+            kickStream: jugador.kickStream,
+            youtube: jugador.youtube,
+        });
+    } catch (error) {
+        console.log('Error al buscar el perfil del jugador', error);
+        res.status(500).json({ error: 'Error al buscar el perfil del jugador' });
+    }
+});
+
 // Start server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
