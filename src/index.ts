@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt, { JwtPayload } from 'jsonwebtoken';
+import { error } from 'console';
 
 const app = express();
 const prisma = new PrismaClient();
@@ -333,6 +334,131 @@ app.get("/jugador/:username", authenticate, async (req, res) => {
     } catch (error) {
         console.log('Error al buscar el perfil del jugador', error);
         res.status(500).json({ error: 'Error al buscar el perfil del jugador' });
+    }
+});
+
+// Endpoint para obtener los equipos a los que pertenezco
+app.get("/misEquipos", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const usuarioId = parseInt(req.userId as string, 10);
+
+        const jugador = await prisma.jugador.findUnique({
+            where: { usuarioId },
+            include: {
+                JugadoresEquipos: {
+                    include: {
+                        Equipo: true
+                    },
+                }
+            }
+        });
+
+        if (!jugador) {
+            return res.status(404).json({ error: "No se encontro el perfil del jugador" });
+        }
+
+        // extrae los equipos a los que pertenece el jugador
+        const equipos = jugador.JugadoresEquipos.map((je) => ({
+            id: je.Equipo.id,
+            nombre: je.Equipo.nombre,
+            descripcion: je.Equipo.descripcion,
+            fundadoEn: je.Equipo.fundadoEn,
+            esAdministrador: je.rol === "Administrador"
+        }));
+
+        res.json(equipos);
+    } catch ( error ) {
+        console.log('Error al obtener los equipos del usuario', error);
+        res.status(500).json({ error: 'Error al obtener los equipos del usuario' });
+    }
+});
+
+app.post("/crearEquipo", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { nombre, descripcion, fundadoEn } = req.body;
+        const usuarioId = parseInt(req.userId as string, 10);
+
+        if (!usuarioId) {
+            return res.status(401).json({ error: "Usuario no autenticado" });
+        }
+
+        const nuevoEquipo = await prisma.equipo.create({
+            data: {
+                nombre,
+                descripcion,
+                fundadoEn: new Date(fundadoEn),
+                JugadoresEquipos: {
+                    create: {
+                        Jugador: {
+                            connect: { usuarioId },
+                        },
+                        fechaUnion: new Date(),
+                        rol: 'Administrador',
+                    },
+                },
+            },
+        });
+
+        res.status(201).json({ message: "Equipo creado correctamente", equipo: nuevoEquipo });
+    } catch (error) {
+        console.log('Error al crear el equipo', error);
+        res.status(500).json({ error: 'Error al crear el equipo' });
+    }
+});
+
+// Endpoint para obtener los datos del equipo
+app.get("/equipos/:id", async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const equipo = await prisma.equipo.findUnique({
+            where: { id: parseInt(id, 10) },
+        });
+
+        if (!equipo) {
+            return res.status(404).json({ error: "Equipo no encontrado" });
+        }
+
+        res.status(200).json(equipo);
+    } catch (error) {
+        console.error("Error al obtener el equipo", error);
+        res.status(500).json({ error: "Error al obtener el equipo" });
+    }
+});
+
+// Endpoint para editar un equipo siendo administrador
+app.put("/editarEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { nombre, descripcion } = req.body;
+        const usuarioId = parseInt(req.userId as string, 10);
+
+        if (!usuarioId) {
+            return res.status(401).json({ error: "Usuario no autenticado" });
+        }
+
+        // verifica si el usuario es administrador del equipo
+        const jugadorEquipo = await prisma.jugadoresEquipos.findFirst({
+            where: {
+                equipoId: parseInt(id, 10),
+                jugadorId: usuarioId,
+                rol: "Administrador",
+            },
+        });
+
+        if (!jugadorEquipo) {
+            return res.status(403).json({ error: "No tienes permiso para editar este equipo" });
+        }
+
+        // editar el equipo
+        const equipoEditado = await prisma.equipo.update({
+            where: { id: parseInt(id, 10) },
+            data: { nombre, descripcion },
+        });
+
+        res.status(200).json({ message: "Equipo editado correctamente" });
+    } catch (error) {
+        console.log('Error al editar el equipo', error);
+        res.status(500).json({ error: 'Error al editar el equipo' });
     }
 });
 
