@@ -363,7 +363,7 @@ app.get("/misEquipos", authenticate, async (req: AuthenticatedRequest, res: Resp
             nombre: je.Equipo.nombre,
             descripcion: je.Equipo.descripcion,
             fundadoEn: je.Equipo.fundadoEn,
-            esAdministrador: je.rol === "Administrador"
+            esAdministrador: je.rol === "Administrador" || "Manager"
         }));
 
         res.json(equipos);
@@ -441,7 +441,9 @@ app.put("/editarEquipo/:id", authenticate, async (req: AuthenticatedRequest, res
             where: {
                 equipoId: parseInt(id, 10),
                 jugadorId: usuarioId,
-                rol: "Administrador",
+                rol: {
+                    in: ["Administrador", "Manager"]
+                }
             },
         });
 
