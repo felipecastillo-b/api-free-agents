@@ -505,7 +505,7 @@ app.delete("/borrarEquipo/:id", authenticate, async (req: AuthenticatedRequest, 
     }
 });
 
-// Endpoint para obtener los datos del equipo
+// Endpoint para obtener los datos del equipo y jugadores
 app.get("/verEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: Response) => {
     try {
         const { id } = req.params;
@@ -524,8 +524,13 @@ app.get("/verEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: R
             where: { id: parseInt(id, 10) },
             include: {
                 JugadoresEquipos: {
-                    where: { jugadorId: usuarioId },
-                    select: { rol: true },
+                    include: {
+                        Jugador: {
+                            include: {
+                                Usuario: true
+                            }
+                        },
+                    }
                 }
             }
         });
@@ -534,9 +539,23 @@ app.get("/verEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: R
             return res.status(404).json({ error: "Equipo no encontrado" });
         }
 
-        const esAdministrador = equipo.JugadoresEquipos.length > 0 && equipo.JugadoresEquipos[0].rol !== null && ["Administrador", "Manager"].includes(equipo.JugadoresEquipos[0].rol);
+        // Determinar el rol del usuario en el equipo
+        const miembro = equipo.JugadoresEquipos.find(je => je.Jugador.usuarioId === usuarioId);
+        const esAdministrador = miembro ? ["Administrador", "Manager"].includes(miembro.rol ?? "") : false;
 
-        res.status(200).json({ equipo, esAdministrador });
+        // Formatear la respuesta con los miembros y sus roles
+        const equipoConMiembros = {
+            ...equipo,
+            miembros: equipo.JugadoresEquipos.map(({ Jugador, rol }) => ({
+                jugador: {
+                    id: Jugador.id,
+                    username: Jugador.Usuario.username,
+                },
+                rol,
+            })),
+        };
+
+        res.status(200).json({ equipo: equipoConMiembros, esAdministrador });
     } catch (error) {
         console.error("Error al obtener el equipo", error);
         res.status(500).json({ error: "Error al obtener el equipo" });
