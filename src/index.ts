@@ -363,7 +363,7 @@ app.get("/misEquipos", authenticate, async (req: AuthenticatedRequest, res: Resp
             nombre: je.Equipo.nombre,
             descripcion: je.Equipo.descripcion,
             fundadoEn: je.Equipo.fundadoEn,
-            esAdministrador: je.rol === "Administrador" || "Manager"
+            esAdministrador: je.rol === "Administrador" || je.rol === "Manager"
         }));
 
         res.json(equipos);
@@ -461,6 +461,85 @@ app.put("/editarEquipo/:id", authenticate, async (req: AuthenticatedRequest, res
     } catch (error) {
         console.log('Error al editar el equipo', error);
         res.status(500).json({ error: 'Error al editar el equipo' });
+    }
+});
+
+app.delete("/borrarEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const usuarioId = parseInt(req.userId as string, 10);
+
+        if (!usuarioId) {
+            return res.status(401).json({ error: "Usuario no autenticado" });
+        }
+
+        // verifica si el usuario es Administrador del equipo
+        const jugadorEquipo = await prisma.jugadoresEquipos.findFirst({
+            where: {
+                equipoId: parseInt(id, 10),
+                jugadorId: usuarioId,
+                rol: {
+                    in: ["Administrador"]
+                }
+            },
+        });
+
+        if (!jugadorEquipo) {
+            return res.status(403).json({ error: "No tienes permiso para borrar el equipo" });
+        }
+
+        // Borra todas las relaciones de jugadoresEquipos
+        await prisma.jugadoresEquipos.deleteMany({
+            where: { equipoId: parseInt(id, 10) },
+        })
+
+        // Borra el equipo
+        await prisma.equipo.delete({
+            where: { id: parseInt(id, 10) },
+        });
+
+        res.status(200).json({ message: "Equipo borrado correctamente" });
+    } catch (error) {
+        console.log('Error al borrar el equipo', error);
+        res.status(500).json({ error: 'Error al borrar el equipo' });
+    }
+});
+
+// Endpoint para obtener los datos del equipo
+app.get("/verEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        
+        if (!req.userId) {
+            return res.status(401).json({ error: "Usuario no autenticado" });
+        }
+
+        const usuarioId = parseInt(req.userId, 10);
+        if (isNaN(usuarioId)) {
+            return res.status(400).json({ error: "ID de usuario invalido" });
+        }
+
+        // Obtener el equipo junto con el rol del usuario en ese equipo
+        const equipo = await prisma.equipo.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: {
+                JugadoresEquipos: {
+                    where: { jugadorId: usuarioId },
+                    select: { rol: true },
+                }
+            }
+        });
+
+        if (!equipo) {
+            return res.status(404).json({ error: "Equipo no encontrado" });
+        }
+
+        const esAdministrador = equipo.JugadoresEquipos.length > 0 && equipo.JugadoresEquipos[0].rol !== null && ["Administrador", "Manager"].includes(equipo.JugadoresEquipos[0].rol);
+
+        res.status(200).json({ equipo, esAdministrador });
+    } catch (error) {
+        console.error("Error al obtener el equipo", error);
+        res.status(500).json({ error: "Error al obtener el equipo" });
     }
 });
 
