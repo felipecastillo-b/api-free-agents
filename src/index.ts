@@ -543,6 +543,138 @@ app.get("/verEquipo/:id", authenticate, async (req: AuthenticatedRequest, res: R
     }
 });
 
+// Endpoint para invitar a un jugador al equipo
+app.post('/invitarJugador', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { equipoId: equipoIdString, username, mensaje } = req.body;
+        const userId = parseInt(req.userId as string, 10);
+        const equipoId = parseInt(equipoIdString, 10);
+
+        if (!username || isNaN(equipoId) || !mensaje) { // Verificar que equipoId sea un número válido
+            return res.status(400).json({ error: 'Faltan datos requeridos' });
+        }
+
+        // Verifica si el usuario es Administrador o Manager del equipo
+        const jugadorEquipo = await prisma.jugadoresEquipos.findFirst({
+            where: {
+                equipoId,
+                jugadorId: userId,
+                rol: { in: ['Administrador', 'Manager'] },
+            },
+        });
+
+        if (!jugadorEquipo) {
+            return res.status(403).json({ error: 'No tienes permiso para invitar jugadores a este equipo' });
+        }
+
+        // Obtiene el jugador a invitar
+        const jugador = await prisma.jugador.findFirst({
+            where: { Usuario: { username } },
+        });
+
+        if (!jugador) {
+            return res.status(404).json({ error: 'Jugador no encontrado' });
+        }
+
+        // Crea la oferta
+        const oferta = await prisma.oferta.create({
+            data: {
+                equipoId,
+                jugadorId: jugador.id,
+                mensaje,
+                estado: 'Pendiente',
+            },
+        });
+
+        res.status(201).json({ message: 'Invitación enviada correctamente', oferta });
+    } catch (error) {
+        console.log('Error al invitar al jugador:', error);
+        res.status(500).json({ error: 'Error al invitar al jugador' });
+    }
+});
+
+// Endpoint para obtener las ofertas recibidas por un jugador
+app.get('/ofertasRecibidas', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const userId = parseInt(req.userId as string, 10);
+
+        // Obtiene el jugador
+        const jugador = await prisma.jugador.findUnique({
+            where: { usuarioId: userId },
+        });
+
+        if (!jugador) {
+            return res.status(404).json({ error: 'Jugador no encontrado' });
+        }
+
+        // Obtiene las ofertas recibidas
+        const ofertas = await prisma.oferta.findMany({
+            where: { jugadorId: jugador.id },
+            include: { Equipo: true },
+        });
+
+        res.status(200).json(ofertas);
+    } catch (error) {
+        console.log('Error al obtener las ofertas recibidas:', error);
+        res.status(500).json({ error: 'Error al obtener las ofertas recibidas' });
+    }
+});
+
+// Endpoint para aceptar o rechazar una oferta
+app.put('/respuestaOferta/:id', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { estado } = req.body; // 'Aceptada' o 'Rechazada'
+        const userId = parseInt(req.userId as string, 10);
+
+        if (!['Aceptada', 'Rechazada'].includes(estado)) {
+            return res.status(400).json({ error: 'Estado de oferta inválido' });
+        }
+
+        // Obtiene el jugador
+        const jugador = await prisma.jugador.findUnique({
+            where: { usuarioId: userId },
+        });
+
+        if (!jugador) {
+            return res.status(404).json({ error: 'Jugador no encontrado' });
+        }
+
+        // Encuentra la oferta
+        const oferta = await prisma.oferta.findUnique({
+            where: { id: parseInt(id, 10) },
+            include: { Equipo: true }, // Incluye informacion del equipo
+        });
+
+        if (!oferta || oferta.jugadorId !== jugador.id) {
+            return res.status(404).json({ error: 'Oferta no encontrada o no pertenece al jugador' });
+        }
+
+        // Actualiza el estado de la oferta
+        const ofertaActualizada = await prisma.oferta.update({
+            where: { id: oferta.id },
+            data: { estado },
+        });
+
+        // Si la oferta fue aceptada, se debe insertar el jugador en el equipo
+        if (estado === 'Aceptada') {
+            await prisma.jugadoresEquipos.create({
+                data: {
+                    jugadorId: jugador.id,
+                    equipoId: oferta.equipoId,
+                    rol: 'Jugador', // Asigna un rol predeterminado 'Jugador'
+                    fechaUnion: new Date(),
+                },
+            });
+        }
+
+        res.status(200).json({ message: 'Oferta actualizada correctamente', oferta: ofertaActualizada });
+    } catch (error) {
+        console.log('Error al actualizar la oferta:', error);
+        res.status(500).json({ error: 'Error al actualizar la oferta' });
+    }
+});
+
 // Start server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
